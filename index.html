@@ -1,31 +1,316 @@
 <!DOCTYPE html>
-<!-- A placeholder from the Home Sales template. Replace this file with your site's first page. -->
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Under construction</title>
-  <!-- An empty icon, so the browser doesn't log an error looking for favicon.ico -->
-  <link rel="icon" href="data:,">
-  <style>
-    :root { color-scheme: light dark; }
-    body {
-      max-width: 40rem;
-      margin: 0 auto;
-      padding: 3rem 1rem;
-      font-family: system-ui, sans-serif;
-      line-height: 1.5;
-    }
-    footer { margin-top: 3rem; font-size: 0.875rem; opacity: 0.75; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>College-Town Home Sales Explorer</title>
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --card: #ffffff;
+    --ink: #1f2933;
+    --muted: #6b7280;
+    --line: #e5e1d8;
+    --bar: #8aa6c1;
+    --accent: #e8590c;
+    --accent-soft: #fff1e6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 32px 20px 60px; }
+  header h1 { font-size: 2rem; margin: 0 0 6px; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--muted); max-width: 760px; }
+  .controls { margin: 24px 0 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .controls label { font-weight: 600; }
+  select {
+    font: inherit; padding: 8px 12px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--card); min-width: 320px;
+  }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .kpi .label { color: var(--muted); font-size: 0.85rem; }
+  .kpi .value { font-size: 1.6rem; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  section.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; margin-top: 20px; }
+  section.card h2 { font-size: 1.2rem; margin: 0 0 4px; }
+  section.card .sub { color: var(--muted); margin: 0 0 16px; font-size: 0.92rem; }
+  .bars { display: grid; grid-template-columns: 170px 1fr 90px; gap: 6px 12px; align-items: center; }
+  .bars .name { text-align: right; font-size: 0.92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bars .track { background: #f1eee7; border-radius: 4px; height: 20px; }
+  .bars .fill { background: var(--bar); height: 100%; border-radius: 4px; }
+  .bars .fill.uiuc { background: var(--accent); }
+  .bars .num { font-variant-numeric: tabular-nums; font-size: 0.92rem; }
+  .legend { margin-top: 12px; font-size: 0.85rem; color: var(--muted); }
+  .legend span.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--accent); vertical-align: -1px; margin-right: 6px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+  th, td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th { cursor: pointer; user-select: none; background: #faf8f4; position: sticky; top: 0; }
+  th:hover { background: #f1eee7; }
+  th .arrow { color: var(--muted); font-size: 0.75rem; }
+  tr.uiuc td { background: var(--accent-soft); }
+  .notes { font-size: 0.92rem; }
+  .notes li { margin-bottom: 6px; }
+  #status { margin-top: 20px; color: var(--muted); }
+  #status.error { color: #b91c1c; }
+  footer { margin-top: 28px; color: var(--muted); font-size: 0.85rem; }
+  @media (max-width: 640px) {
+    .bars { grid-template-columns: 110px 1fr 80px; }
+    select { min-width: 0; width: 100%; }
+  }
+</style>
 </head>
 <body>
-  <main>
-    <h1>This site is under construction</h1>
-    <p>It will show findings from the College-town home sales dataset.</p>
-  </main>
+<div class="wrap">
+  <header>
+    <h1>College-Town Home Sales Explorer</h1>
+    <p>How much do homes near 11 university campuses sell for, and how fast do they sell?
+       Every number on this page is computed in your browser from
+       <code>data/college_town_home_sales.csv</code> (35,442 sales, collected March 2026).
+       Champaign, Urbana and Savoy (UIUC) are highlighted in orange.</p>
+  </header>
+
+  <div class="controls">
+    <label for="campus">Campus area</label>
+    <select id="campus" disabled><option>Loading data…</option></select>
+  </div>
+
+  <div id="status">Loading the dataset, this can take a few seconds…</div>
+
+  <div id="content" hidden>
+    <div class="kpis">
+      <div class="kpi"><div class="label">Sales included</div><div class="value" id="k-sales">–</div></div>
+      <div class="kpi"><div class="label">Median sale price</div><div class="value" id="k-price">–</div></div>
+      <div class="kpi"><div class="label">Median price per sq ft</div><div class="value" id="k-ppsf">–</div></div>
+      <div class="kpi"><div class="label">Median days on market</div><div class="value" id="k-dom">–</div></div>
+    </div>
+
+    <section class="card">
+      <h2>Median sale price by city</h2>
+      <p class="sub" id="bars-sub"></p>
+      <div class="bars" id="bars"></div>
+      <div class="legend"><span class="sw"></span>UIUC campus area (Champaign, Urbana, Savoy)</div>
+    </section>
+
+    <section class="card">
+      <h2>City comparison</h2>
+      <p class="sub">Click a column header to sort.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr id="thead"></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card notes">
+      <h2>Data rules used on this page</h2>
+      <ul>
+        <li><strong>Price rule:</strong> only sales from $10,000 to $5,000,000 are included.
+            The raw data has impossible prices (one sale at $0) and a few sales above $5 million
+            (up to $81.5 million). <span id="n-price"></span></li>
+        <li><strong>Days on market</strong> = <code>contract_date − list_date</code>, the way real estate sites count it.
+            It is only computed when both dates exist. A blank date is not treated as zero.
+            <span id="n-dom"></span></li>
+        <li><strong>Price per sq ft</strong> is only computed when <code>living_area_sqft</code> is greater than 0
+            (127 rows report 0). <span id="n-ppsf"></span></li>
+        <li><strong>No deduplication by address.</strong> Several condo units share one street address,
+            so each row is kept as its own sale (<code>listing_id</code> is the key).</li>
+        <li><strong>Medians, not averages,</strong> because prices and days on market have long upper tails.</li>
+        <li><code>home_type</code> is not used, since the data sheet says it is unreliable.</li>
+      </ul>
+    </section>
+  </div>
+
   <footer>
-    <p>Data: College-town home sales dataset, version 1.0 (2026). University of Illinois-Deloitte Foundation Center for Business Emerging Technologies. Data collected March 2026.</p>
+    Data: College-town home sales dataset, version 1.0 (2026). University of Illinois–Deloitte Foundation
+    Center for Business Emerging Technologies. Data collected March 2026. Values are as reported by the source.
   </footer>
+</div>
+
+<script>
+const DATA_URL = "data/college_town_home_sales.csv";
+const PRICE_MIN = 10000;
+const PRICE_MAX = 5000000;
+const UIUC = "University of Illinois Urbana-Champaign";
+
+// Quote-aware CSV parser (handles commas, quotes and line breaks inside quoted fields).
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = "", i = 0, inQuotes = false;
+  const n = text.length;
+  while (i < n) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      }
+      field += c; i++; continue;
+    }
+    if (c === '"') { inQuotes = true; i++; continue; }
+    if (c === ",") { row.push(field); field = ""; i++; continue; }
+    if (c === "\r") { i++; continue; }
+    if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; i++; continue; }
+    field += c; i++;
+  }
+  if (field !== "" || row.length) { row.push(field); rows.push(row); }
+  const header = rows.shift().map(h => h.replace(/^﻿/, "").trim());
+  return rows.filter(r => r.length === header.length).map(r => {
+    const o = {};
+    header.forEach((h, j) => { o[h] = r[j]; });   // everything stays text (zipcode, county_fips, parcel_number)
+    return o;
+  });
+}
+
+function num(v) { if (v === undefined || v === null || v === "") return null; const x = Number(v); return Number.isFinite(x) ? x : null; }
+function days(a, b) {
+  if (!a || !b) return null;
+  const d1 = Date.parse(a + "T00:00:00Z"), d2 = Date.parse(b + "T00:00:00Z");
+  if (!Number.isFinite(d1) || !Number.isFinite(d2)) return null;
+  return Math.round((d2 - d1) / 86400000);
+}
+function median(arr) {
+  if (!arr.length) return null;
+  const s = arr.slice().sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+const fmtInt = new Intl.NumberFormat("en-US");
+const money = v => v === null ? "–" : "$" + fmtInt.format(Math.round(v));
+const count = v => v === null ? "–" : fmtInt.format(v);
+const dayFmt = v => v === null ? "–" : fmtInt.format(Math.round(v)) + " days";
+
+let SALES = [];                 // cleaned rows that pass the price rule
+let RAW_COUNT = 0;
+let sortKey = "price", sortDir = -1;
+
+function summarize(rows) {
+  return {
+    sales: rows.length,
+    price: median(rows.map(r => r.price)),
+    ppsf: median(rows.filter(r => r.ppsf !== null).map(r => r.ppsf)),
+    dom: median(rows.filter(r => r.dom !== null).map(r => r.dom)),
+    domN: rows.filter(r => r.dom !== null).length,
+    miles: median(rows.map(r => r.miles).filter(v => v !== null)),
+  };
+}
+
+function byCity(rows) {
+  const groups = new Map();
+  rows.forEach(r => {
+    const k = r.city + ", " + r.state;
+    if (!groups.has(k)) groups.set(k, { city: k, university: r.university, rows: [] });
+    groups.get(k).rows.push(r);
+  });
+  return [...groups.values()].map(g => ({ city: g.city, university: g.university, ...summarize(g.rows) }));
+}
+
+const COLS = [
+  { key: "city", label: "City", fmt: v => v },
+  { key: "university", label: "Nearest campus", fmt: v => v },
+  { key: "sales", label: "Sales", fmt: count },
+  { key: "price", label: "Median price", fmt: money },
+  { key: "ppsf", label: "Median $/sq ft", fmt: money },
+  { key: "dom", label: "Median days on market", fmt: dayFmt },
+  { key: "miles", label: "Median miles to campus", fmt: v => v === null ? "–" : v.toFixed(1) },
+];
+
+function render() {
+  const campus = document.getElementById("campus").value;
+  const rows = campus === "ALL" ? SALES : SALES.filter(r => r.university === campus);
+  const s = summarize(rows);
+
+  document.getElementById("k-sales").textContent = count(s.sales);
+  document.getElementById("k-price").textContent = money(s.price);
+  document.getElementById("k-ppsf").textContent = money(s.ppsf);
+  document.getElementById("k-dom").textContent = dayFmt(s.dom);
+
+  const cities = byCity(rows);
+
+  // Bar chart, highest median first
+  const bars = cities.slice().sort((a, b) => b.price - a.price);
+  const max = Math.max(...bars.map(c => c.price));
+  document.getElementById("bars-sub").textContent =
+    (campus === "ALL" ? "All campus areas" : campus) + " · " + bars.length + " cities · sales from $10,000 to $5,000,000";
+  document.getElementById("bars").innerHTML = bars.map(c => `
+    <div class="name" title="${c.city}">${c.city}</div>
+    <div class="track"><div class="fill ${c.university === UIUC ? "uiuc" : ""}" style="width:${(c.price / max * 100).toFixed(1)}%"></div></div>
+    <div class="num">${money(c.price)}</div>`).join("");
+
+  // Table
+  document.getElementById("thead").innerHTML = COLS.map(c =>
+    `<th data-key="${c.key}">${c.label} <span class="arrow">${sortKey === c.key ? (sortDir === 1 ? "▲" : "▼") : ""}</span></th>`).join("");
+  document.querySelectorAll("#thead th").forEach(th => th.onclick = () => {
+    const k = th.dataset.key;
+    if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = (k === "city" || k === "university") ? 1 : -1; }
+    render();
+  });
+  cities.sort((a, b) => {
+    const x = a[sortKey], y = b[sortKey];
+    if (x === null) return 1; if (y === null) return -1;
+    return (typeof x === "string" ? x.localeCompare(y) : x - y) * sortDir;
+  });
+  document.getElementById("tbody").innerHTML = cities.map(c =>
+    `<tr class="${c.university === UIUC ? "uiuc" : ""}">${COLS.map(col => `<td>${col.fmt(c[col.key])}</td>`).join("")}</tr>`).join("");
+}
+
+async function init() {
+  const status = document.getElementById("status");
+  try {
+    const res = await fetch(DATA_URL);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const raw = parseCSV(await res.text());
+    RAW_COUNT = raw.length;
+
+    let tooLow = 0, tooHigh = 0, zeroArea = 0;
+    SALES = [];
+    raw.forEach(r => {
+      const price = num(r.sale_price);
+      if (price === null || price < PRICE_MIN) { tooLow++; return; }
+      if (price > PRICE_MAX) { tooHigh++; return; }
+      const area = num(r.living_area_sqft);
+      if (area !== null && area <= 0) zeroArea++;
+      SALES.push({
+        city: r.city, state: r.state, university: r.university,
+        price,
+        ppsf: area !== null && area > 0 ? price / area : null,
+        dom: days(r.list_date, r.contract_date),
+        miles: num(r.miles_to_campus),
+      });
+    });
+
+    const domN = SALES.filter(r => r.dom !== null).length;
+    const ppsfN = SALES.filter(r => r.ppsf !== null).length;
+    document.getElementById("n-price").textContent =
+      `Of ${count(RAW_COUNT)} rows, ${count(tooLow)} under $10,000 and ${count(tooHigh)} over $5,000,000 were left out, leaving ${count(SALES.length)} sales.`;
+    document.getElementById("n-dom").textContent =
+      `${count(domN)} of the ${count(SALES.length)} included sales have both dates.`;
+    document.getElementById("n-ppsf").textContent =
+      `${count(ppsfN)} included sales have a usable living area.`;
+
+    const unis = [...new Set(SALES.map(r => r.university))].sort();
+    const sel = document.getElementById("campus");
+    sel.innerHTML = `<option value="ALL">All 11 campus areas</option>` +
+      unis.map(u => `<option value="${u}">${u}</option>`).join("");
+    sel.disabled = false;
+    sel.onchange = render;
+
+    status.hidden = true;
+    document.getElementById("content").hidden = false;
+    render();
+  } catch (err) {
+    status.textContent = "Could not load " + DATA_URL + " (" + err.message + ").";
+    status.className = "error";
+  }
+}
+init();
+</script>
 </body>
 </html>
